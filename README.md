@@ -5,9 +5,9 @@ In this repository I will describe my journey investigating possibility to run w
 ## Assumptions
 
 - I am using TIBCO EBX 5.9.26 for the test.
-- I discovered proposal [#45300](https://github.com/kubernetes/kubernetes/issues/45300) which is issue in Kubernetes GitHub
-- I also will consider [this](https://stackoverflow.com/questions/47291581/kubernetes-service-with-clustered-pods-in-active-standby)
-- and [this](https://github.com/amelbakry/kubernetes-active-passive)
+- I discovered proposal [#45300](https://github.com/kubernetes/kubernetes/issues/45300) which is issue in Kubernetes GitHub.
+- I also will consider [this](https://stackoverflow.com/questions/47291581/kubernetes-service-with-clustered-pods-in-active-standby) article in Stackoverflow.
+- and [this](https://github.com/amelbakry/kubernetes-active-passive) github repository.
 
 ## TIBCO EBX failover with hot-stanby
 
@@ -74,20 +74,32 @@ The format of the request URL must be:
 
 ## Kubernetes settings
 
-### Create statefulset
+### Create statefulset with readiness probe
 
-will test and let you know.
+After some tests I realized that I don't need one main and one standby instances but two standby.
 
-name every POD like demo-main-0, demo-standby-1
+I created two statefulsets "sfs-a" and "sfs-b" with the same standby configurations as described in the TIBCO EBX documentation and the following redinessProbe:
 
-use redinesss and livliness probes
-
-TIBCO EBX 5 doesn't support health operations so I need to use different aproach to monitor. So I check for a unique string that shows application is started and create a dummy file
-
+``` yaml
 readinessProbe:
    exec:
      command:
-       - sh
+       - /bin/sh
        - -c
-       - test -f /tmpready/ready
+       - |
+          result=$(curl -s http://localhost:8080/ebx/?repositoryInformationRequest=state)
+          if [ "$result" = "O" ]; then
+            exit 0
+          else
+            exit 1
+          fi
+     initialDelaySeconds: 60
+     timeoutSeconds: 10
+     periodSeconds: 5
+     successThreshold: 12
+```
+With this configuration the two pods will run sfs-a-0 and sfs-b-0 but will be not ready until you do request as explained in TIBCO EBX documentation to take the ownership of the repository. After one of the pod takes the ownership its state became "O" and the pod is read thus accepting traffic. If you take the ownership from the other one (sts-b-0) the first one (sts-a-0) became dead ("D") thus not ready and after around 40 seconds the other pod takes the ownership.
 
+This setup is similar to Blue-green deployment strategy. This means that improves the operational resilience of Kubernetes workloads, allowing developers to safely test the new deployment in production cluster without immediately exposing the changes to users.
+
+Note: TIBCO EBX 5 doesn't support health operations.
