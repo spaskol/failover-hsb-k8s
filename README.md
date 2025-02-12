@@ -102,4 +102,4 @@ With this configuration the two pods will run sfs-a-0 and sfs-b-0 but will be no
 
 This setup is similar to Blue-green deployment strategy. This means that improves the operational resilience of Kubernetes workloads, allowing developers to safely test the new deployment in production cluster without immediately exposing the changes to users.
 
-Note: TIBCO EBX 5 doesn't support health operations.
+Note: TIBCO EBX 5 doesn't support health operations but the 6th version does.
